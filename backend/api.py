@@ -128,6 +128,9 @@ bots: Dict[int, TradingBotV2] = {}
 bot_threads: Dict[int, threading.Thread] = {}
 next_bot_id = 1
 
+# Evolution control: temporarily block weak parent lines
+EVOLVE_PARENT_COOLDOWN_UNTIL: Dict[str, float] = {}
+
 ML_DB_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'ml_data.db')
 DB_BACKEND = os.getenv('DB_BACKEND', 'sqlite').lower()
 PG_CONFIG = {
@@ -574,6 +577,109 @@ def _mode_key_from_mode_name(mode_name: str) -> str:
     return mapping.get(n, 'balanced')
 
 
+def _family_from_bot_name(name: str) -> str:
+    n = str(name or '')
+    if n.startswith('EVO-'):
+        return 'EVO'
+    if n.startswith('SCALP2-'):
+        return 'SCALP2'
+    if n.startswith('SCALP-'):
+        return 'SCALP'
+    if n.startswith('WIN-CLONE'):
+        return 'WIN'
+    if n.startswith('HYPER-'):
+        return 'HYPER'
+    if n.startswith('CROWD-'):
+        return 'CROWD'
+    if n.startswith('HYBRID-'):
+        return 'HYBRID'
+    if n.startswith('ROC-'):
+        return 'ROC'
+    if n.startswith('WR-'):
+        return 'WR'
+    if n.startswith('ICHI-'):
+        return 'ICHI'
+    if n.startswith('XRP-'):
+        return 'XRP'
+    return 'BASE'
+
+
+def _extract_parent_line_name(bot_name: str) -> str:
+    n = str(bot_name or '')
+    if n.startswith('EVO-'):
+        n = n[4:]
+        if '#' in n:
+            n = n.split('#', 1)[0]
+    return n
+
+
+def _parse_prefixes_csv(raw: str, default_csv: str) -> List[str]:
+    s = (raw or '').strip() or default_csv
+    out = [x.strip() for x in s.split(',') if x.strip()]
+    return out
+
+
+def _is_parent_allowed(parent_name: str) -> bool:
+    allowed = _parse_prefixes_csv(
+        os.getenv('OPENCLAW_EVOLVE_PARENT_ALLOW_PREFIXES', ''),
+        'HYPER-,SCALP2-,XRP-,WR-,WIN-CLONE,SCALP-'
+    )
+    return any(parent_name.startswith(p) for p in allowed)
+
+
+def _is_parent_on_cooldown(parent_name: str) -> bool:
+    ts = EVOLVE_PARENT_COOLDOWN_UNTIL.get(parent_name, 0)
+    return ts > time.time()
+
+
+def _refresh_bad_parent_cooldowns():
+    """Pause parent lines that produce too many losing clones."""
+    now = time.time()
+
+    # clear expired
+    for k, v in list(EVOLVE_PARENT_COOLDOWN_UNTIL.items()):
+        if v <= now:
+            EVOLVE_PARENT_COOLDOWN_UNTIL.pop(k, None)
+
+    if os.getenv('OPENCLAW_EVOLVE_PARENT_COOLDOWN', '1') != '1':
+        return
+
+    min_trades = int(os.getenv('OPENCLAW_EVOLVE_PARENT_EVAL_MIN_TRADES', '3'))
+    min_bad = int(os.getenv('OPENCLAW_EVOLVE_PARENT_BAD_CLONES', '2'))
+    min_bad_expectancy = float(os.getenv('OPENCLAW_EVOLVE_PARENT_MIN_EXPECTANCY', '-0.20'))
+    cooldown_sec = int(os.getenv('OPENCLAW_EVOLVE_BAD_PARENT_COOLDOWN_SEC', '3600'))
+
+    persisted_map = get_persisted_trade_stats_cached()
+    by_parent: Dict[str, Dict[str, int]] = {}
+
+    for _bot_id, bot in list(bots.items()):
+        name = getattr(bot, 'name', '')
+        if not str(name).startswith('EVO-'):
+            continue
+
+        parent = _extract_parent_line_name(name)
+        s = merge_runtime_and_persisted_stats(name, getattr(bot, 'stats', {}) or {}, persisted_map)
+        trades = int(s.get('total_trades', 0) or 0)
+        pnl = float(s.get('total_profit_usdt', 0) or 0)
+        expectancy = (pnl / trades) if trades > 0 else 0.0
+
+        if trades < min_trades:
+            continue
+
+        row = by_parent.setdefault(parent, {'bad': 0, 'good': 0})
+        if pnl < 0 and expectancy <= min_bad_expectancy:
+            row['bad'] += 1
+        elif pnl > 0 and expectancy > 0:
+            row['good'] += 1
+
+    for parent, row in by_parent.items():
+        if row['bad'] >= min_bad and row['bad'] > row['good']:
+            EVOLVE_PARENT_COOLDOWN_UNTIL[parent] = max(
+                EVOLVE_PARENT_COOLDOWN_UNTIL.get(parent, 0),
+                now + cooldown_sec
+            )
+
+
 def _start_bot_worker(bot_id: int, bot: TradingBotV2):
     if bot.is_running:
         return
@@ -637,20 +743,42 @@ async def evolve_bots(clones_per_winner: int = 2, top_n: int = 5, min_trades: in
     min_trades = max(0, min(int(min_trades), 1000))
     max_new = max(1, min(int(max_new), 80))
 
+    # update parent cooldown map before selecting winners
+    _refresh_bad_parent_cooldowns()
+
     # кандидаты: уже торгуют и в плюсе
     persisted_map = get_persisted_trade_stats_cached()
     candidates = []
+    min_expectancy = float(os.getenv('OPENCLAW_EVOLVE_MIN_EXPECTANCY', '0.0'))
+
     for bot_id, bot in list(bots.items()):
         if not getattr(bot, 'is_running', False):
             continue
+
+        parent_name = str(getattr(bot, 'name', '') or '')
+
+        # don't recursively clone clones by default
+        if parent_name.startswith('EVO-'):
+            continue
+
+        # evolve only allowed high-signal families
+        if not _is_parent_allowed(parent_name):
+            continue
+
+        # parent line is temporarily blocked due to bad clone branch
+        if _is_parent_on_cooldown(parent_name):
+            continue
+
         raw_stats = getattr(bot, 'stats', {}) or {}
-        stats = merge_runtime_and_persisted_stats(getattr(bot, 'name', ''), raw_stats, persisted_map)
+        stats = merge_runtime_and_persisted_stats(parent_name, raw_stats, persisted_map)
 
         pnl = float(stats.get('total_profit_usdt', 0) or 0)
         trades = int(stats.get('total_trades', 0) or 0)
         wr = float(stats.get('win_rate', 0) or 0)
-        if trades >= min_trades and pnl > 0:
-            score = (pnl * 12.0) + (wr * 0.25) + (trades * 0.1)
+        expectancy = (pnl / trades) if trades > 0 else 0.0
+
+        if trades >= min_trades and pnl > 0 and expectancy >= min_expectancy:
+            score = (pnl * 12.0) + (wr * 0.25) + (trades * 0.1) + (expectancy * 35.0)
             candidates.append((score, bot_id, bot, pnl, trades, wr))
 
     if not candidates:
@@ -1557,6 +1685,7 @@ def auto_cull_loop():
             min_trades = int(os.getenv('OPENCLAW_AUTO_CULL_MIN_TRADES', '12'))
             max_loss = float(os.getenv('OPENCLAW_AUTO_CULL_MAX_LOSS_USDT', '-1.0'))  # negative
             min_wr = float(os.getenv('OPENCLAW_AUTO_CULL_MIN_WR', '18'))
+            min_expectancy = float(os.getenv('OPENCLAW_AUTO_CULL_MIN_EXPECTANCY', '-0.08'))
 
             # hard kill-switch knobs
             kill_session_loss = float(os.getenv('OPENCLAW_KILL_SESSION_LOSS_USDT', '-0.8'))
@@ -1569,17 +1698,38 @@ def auto_cull_loop():
             persisted_map = get_persisted_trade_stats_cached()
 
             for bot_id, bot in list(bots.items()):
+                name = str(getattr(bot, 'name', '') or '')
+                family = _family_from_bot_name(name)
+
                 s = merge_runtime_and_persisted_stats(
-                    getattr(bot, 'name', ''),
+                    name,
                     getattr(bot, 'stats', {}) or {},
                     persisted_map
                 )
                 trades = int(s.get('total_trades', 0) or 0)
                 pnl = float(s.get('total_profit_usdt', 0) or 0)
                 wr = float(s.get('win_rate', 0) or 0)
+                expectancy = (pnl / trades) if trades > 0 else 0.0
+
+                # family-aware strictness
+                fam_loss = max_loss
+                fam_min_wr = min_wr
+                fam_min_expect = min_expectancy
+                fam_delete_loss = delete_loss
+
+                if family in {'EVO', 'BASE', 'ROC', 'SCALP'}:
+                    fam_loss = max(max_loss, -1.2)
+                    fam_min_wr = max(min_wr, 18)
+                    fam_min_expect = max(min_expectancy, -0.03)
+                    fam_delete_loss = max(delete_loss, -1.2)
+                elif family in {'HYPER', 'SCALP2', 'XRP', 'WR', 'WIN'}:
+                    fam_loss = min(max_loss, -1.8)
+                    fam_min_wr = max(10, min_wr - 4)
+                    fam_min_expect = min(min_expectancy, -0.18)
+                    fam_delete_loss = min(delete_loss, -2.5)
 
                 if not getattr(bot, 'is_running', False):
-                    if auto_delete and trades >= min_trades and pnl <= delete_loss and not getattr(bot, 'current_position', None):
+                    if auto_delete and trades >= min_trades and pnl <= fam_delete_loss and not getattr(bot, 'current_position', None):
                         bots.pop(bot_id, None)
                         bot_threads.pop(bot_id, None)
                     continue
@@ -1606,10 +1756,15 @@ def auto_cull_loop():
                     bot.stop()
                     continue
 
-                # soft cull
-                if trades >= min_trades and pnl <= max_loss:
+                # expectancy-based cull
+                if trades >= min_trades and pnl < 0 and expectancy <= fam_min_expect:
                     bot.stop()
-                elif trades >= max(20, min_trades) and pnl < 0 and wr < min_wr:
+                    continue
+
+                # soft cull
+                if trades >= min_trades and pnl <= fam_loss:
+                    bot.stop()
+                elif trades >= max(20, min_trades) and pnl < 0 and wr < fam_min_wr:
                     bot.stop()
 
         except Exception:

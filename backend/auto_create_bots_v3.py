@@ -434,6 +434,31 @@ for v in xrp_cluster:
     })
 
 
+# 22. NEAR focus cluster (dominant winner — mirrors XRP cluster)
+near_cluster = [
+    {'tag': 'ROC-A', 'strategy': MomentumROCStrategy(roc_period=8, buy_threshold=0.6, sell_threshold=-0.6), 'mode': 'scalp', 'lev': 10},
+    {'tag': 'ROC-B', 'strategy': MomentumROCStrategy(roc_period=12, buy_threshold=0.9, sell_threshold=-0.9), 'mode': 'aggressive', 'lev': 9},
+    {'tag': 'WR-A', 'strategy': WilliamsRStrategy(period=10, oversold=-76, overbought=-24), 'mode': 'scalp', 'lev': 10},
+    {'tag': 'WR-B', 'strategy': WilliamsRStrategy(period=7, oversold=-70, overbought=-30), 'mode': 'degen', 'lev': 12},
+    {'tag': 'ICHI', 'strategy': IchimokuStrategy(tenkan=6, kijun=18, senkou_b=36), 'mode': 'scalp', 'lev': 10},
+    {'tag': 'RSI-T', 'strategy': RSIStrategy(rsi_period=5, rsi_oversold=37, rsi_overbought=63), 'mode': 'degen', 'lev': 11},
+    {'tag': 'COMBO-T', 'strategy': RSI_MACD_Strategy(rsi_oversold=35, rsi_overbought=65), 'mode': 'scalp', 'lev': 11},
+    {'tag': 'MACD-T', 'strategy': MACDStrategy(fast_period=5, slow_period=14, signal_period=4), 'mode': 'scalp', 'lev': 10},
+    {'tag': 'HYBRID', 'strategy': AdaptiveHybridAlphaStrategy(position_size_pct=36), 'mode': 'aggressive', 'lev': 10},
+    {'tag': 'BB-T', 'strategy': BollingerStrategy(period=15, std_dev=1.8), 'mode': 'scalp', 'lev': 9},
+]
+for v in near_cluster:
+    BOT_CONFIGS_V3.append({
+        'name': f'NEAR-{v["tag"]} 💎',
+        'symbol': 'NEARUSDT',
+        'strategy': v['strategy'],
+        'mode': v['mode'],
+        'balance': 140,
+        'interval': '1m',
+        'leverage': v['lev'],
+    })
+
+
 # Итого: expanded bot set with multiple alpha families
 print(f"Total configs: {len(BOT_CONFIGS_V3)}")
 
