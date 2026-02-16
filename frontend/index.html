@@ -1,0 +1,1812 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Platform Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        :root {
+            /* Цветовая палитра - тёмная тема Binance/Bybit стиль */
+            --bg-primary: #0b0e11;
+            --bg-secondary: #1e2329;
+            --bg-tertiary: #2b3139;
+            --bg-hover: #363c45;
+            --text-primary: #eaecef;
+            --text-secondary: #848e9c;
+            --text-muted: #5e6673;
+            --accent-blue: #2962ff;
+            --accent-blue-hover: #1e53e4;
+            --profit: #0ecb81;
+            --profit-bg: rgba(14, 203, 129, 0.1);
+            --loss: #f6465d;
+            --loss-bg: rgba(246, 70, 93, 0.1);
+            --warning: #f0b90b;
+            --border: #2b3139;
+            --border-light: #363c45;
+            /* Размеры */
+            --radius-sm: 4px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            /* Тени */
+            --shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 13px;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        
+        /* === HEADER === */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 20px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--warning);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .nav-item {
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all 0.15s;
+            font-weight: 500;
+        }
+        
+        .nav-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .nav-item.active { background: var(--bg-tertiary); color: var(--warning); }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: var(--radius-sm);
+            background: var(--bg-tertiary);
+            font-size: 12px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-dot.online { background: var(--profit); }
+        .status-dot.offline { background: var(--loss); animation: none; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* === MAIN LAYOUT === */
+        .main {
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            height: calc(100vh - 56px);
+        }
+        
+        /* === LEFT SIDEBAR - BOT LIST === */
+        .sidebar-left {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .sidebar-header {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .search-box {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .filter-select {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 6px 8px;
+            color: var(--text-primary);
+            font-size: 12px;
+        }
+        
+        .bot-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        
+        .bot-item {
+            padding: 10px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.1s;
+            margin-bottom: 4px;
+        }
+        
+        .bot-item:hover { background: var(--bg-tertiary); }
+        .bot-item.active { background: var(--bg-hover); border-left: 2px solid var(--warning); }
+        
+        .bot-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .bot-name {
+            font-weight: 500;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .bot-symbol {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+        
+        .bot-pnl {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        .bot-meta {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        
+        /* === CENTER - CHART & POSITIONS === */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* POSITIONS BAR - компактный как на бирже */
+        .positions-bar {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 0 16px;
+        }
+        
+        .positions-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .positions-title {
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .positions-count {
+            background: var(--warning);
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        /* Таблица позиций - компактная */
+        .positions-table {
+            width: 100%;
+            font-size: 12px;
+        }
+        
+        .positions-table th {
+            text-align: left;
+            padding: 8px 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .positions-table td {
+            padding: 10px 8px;
+            border-top: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .positions-table tr:hover {
+            background: var(--bg-tertiary);
+        }
+        
+        .position-symbol {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .position-side {
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .position-side.long {
+            background: var(--profit-bg);
+            color: var(--profit);
+        }
+        
+        .position-side.short {
+            background: var(--loss-bg);
+            color: var(--loss);
+        }
+        
+        .leverage-badge {
+            background: var(--warning);
+            color: #000;
+            padding: 1px 4px;
+            border-radius: 2px;
+            font-size: 10px;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+        
+        /* CHART SECTION */
+        .chart-section {
+            flex: 1;
+            padding: 16px;
+            overflow: auto;
+        }
+        
+        .chart-container {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            height: 400px;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .chart-btn {
+            padding: 4px 10px;
+            background: var(--bg-tertiary);
+            border: none;
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+        
+        .chart-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+        .chart-btn.active { background: var(--accent-blue); color: #fff; }
+        
+        #main-chart {
+            width: 100%;
+            height: calc(100% - 40px);
+        }
+
+        .tv-marker {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 10px;
+            color: #fff;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+            white-space: nowrap;
+            pointer-events: none;
+        }
+        .tv-marker.entry { background: #0ea5e9; }   /* IN */
+        .tv-marker.exit { background: #ef4444; }    /* OUT */
+        .tv-marker.tp-set { background: rgba(14, 203, 129, 0.35); border: 1px dashed rgba(14, 203, 129, 0.9); }
+        .tv-marker.sl-set { background: rgba(246, 70, 93, 0.35); border: 1px dashed rgba(246, 70, 93, 0.9); }
+        .tv-marker.tp-hit { background: #16a34a; }
+        .tv-marker.sl-hit { background: #dc2626; }
+
+        .tv-markers-legend {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            display: flex;
+            gap: 8px;
+            z-index: 3;
+            pointer-events: none;
+            font-size: 11px;
+            color: #cbd5e1;
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: 8px;
+            padding: 4px 8px;
+        }
+        .tv-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            display: inline-block;
+            margin-right: 4px;
+        }
+        .tv-dot.in { background: #0ea5e9; }
+        .tv-dot.out { background: #ef4444; }
+        .tv-dot.tp { background: #16a34a; }
+        .tv-dot.sl { background: #dc2626; }
+
+        .tv-dot.set { background: transparent; border: 1px dashed rgba(203, 213, 225, 0.8); }
+
+        .tv-dot.in, .tv-dot.out, .tv-dot.tp, .tv-dot.sl, .tv-dot.set { vertical-align: middle; }
+
+        /* dedup removed */
+
+        .chart-resizer {
+            height: 8px;
+            margin-top: 8px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(41,98,255,0.18), rgba(41,98,255,0.45), rgba(41,98,255,0.18));
+            cursor: ns-resize;
+            user-select: none;
+        }
+        
+        /* TRADES SECTION */
+        .trades-section {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-top: 16px;
+        }
+        
+        .trades-table {
+            width: 100%;
+            font-size: 12px;
+        }
+        
+        .trades-table th {
+            text-align: left;
+            padding: 8px;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 11px;
+        }
+        
+        .trades-table td {
+            padding: 8px;
+            border-top: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* === RIGHT SIDEBAR - STATS & CONTROLS === */
+        .sidebar-right {
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            padding: 16px;
+            overflow-y: auto;
+        }
+        
+        .stats-card {
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .stats-card-title {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        
+        .stats-value {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .stats-change {
+            font-size: 12px;
+            margin-top: 4px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .stat-item {
+            background: var(--bg-primary);
+            padding: 12px;
+            border-radius: var(--radius-sm);
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        
+        .stat-value {
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* BUTTONS */
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.1s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        
+        .btn-primary {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+        
+        .btn-primary:hover { background: var(--accent-blue-hover); }
+        
+        .btn-success {
+            background: var(--profit);
+            color: #000;
+        }
+        
+        .btn-danger {
+            background: var(--loss);
+            color: #fff;
+        }
+        
+        .btn-ghost {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        
+        .btn-ghost:hover { background: var(--bg-hover); }
+        
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .btn-group .btn { flex: 1; }
+        
+        /* COLORS */
+        .profit { color: var(--profit); }
+        .loss { color: var(--loss); }
+        .warning { color: var(--warning); }
+        .muted { color: var(--text-muted); }
+        
+        /* ALERTS */
+        .alerts {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .alert {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.2s ease;
+            box-shadow: var(--shadow);
+            min-width: 300px;
+        }
+        
+        .alert.success { border-left: 3px solid var(--profit); }
+        .alert.error { border-left: 3px solid var(--loss); }
+        .alert.info { border-left: 3px solid var(--accent-blue); }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        
+        /* NO POSITIONS */
+        .no-positions {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        /* LOADING */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-muted);
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--warning);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <div class="logo">⚡ Trading Platform</div>
+            <nav class="nav">
+                <div class="nav-item active" data-tab="dashboard">Dashboard</div>
+                <div class="nav-item" data-tab="bots">Боты</div>
+                <div class="nav-item" data-tab="backtest">Backtest</div>
+                <div class="nav-item" data-tab="analytics">Аналитика</div>
+            </nav>
+        </div>
+        <div class="header-right">
+            <div class="status-badge" id="ws-status">
+                <div class="status-dot offline"></div>
+                <span>Connecting...</span>
+            </div>
+            <div class="status-badge">
+                <span id="bot-count">0</span> ботов
+            </div>
+        </div>
+    </header>
+    
+    <main class="main">
+        <!-- LEFT SIDEBAR -->
+        <aside class="sidebar-left">
+            <div class="sidebar-header">
+                <input type="text" class="search-box" id="searchBox" placeholder="Поиск бота...">
+                <div class="filter-row">
+                    <select class="filter-select" id="filterMode">
+                        <option value="">Все режимы</option>
+                        <option value="conservative">Conservative</option>
+                        <option value="balanced">Balanced</option>
+                        <option value="aggressive">Aggressive</option>
+                        <option value="degen">Degen</option>
+                        <option value="scalp">Scalp</option>
+                    </select>
+                    <select class="filter-select" id="sortBy">
+                        <option value="profit">PnL ↓</option>
+                        <option value="winrate">Win%</option>
+                        <option value="trades">Trades</option>
+                    </select>
+                </div>
+            </div>
+            <div class="bot-list" id="bot-list">
+                <div class="loading"><div class="spinner"></div>Загрузка...</div>
+            </div>
+        </aside>
+        
+        <!-- CENTER -->
+        <section class="main-content">
+            <!-- RESEARCH BOARD -->
+            <div class="positions-bar" id="research-board">
+                <div class="positions-header">
+                    <div class="positions-title">
+                        Лидерборд (24h)
+                        <span class="positions-count" id="research-count">0</span>
+                    </div>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <select class="filter-select" id="lbPeriod" style="height:28px; padding:4px 8px;" onchange="applyLeaderboardParams()">
+                            <option value="24h" selected>24h</option>
+                            <option value="7d">7d</option>
+                            <option value="30d">30d</option>
+                            <option value="all">all</option>
+                        </select>
+                        <select class="filter-select" id="lbSort" style="height:28px; padding:4px 8px;" onchange="applyLeaderboardParams()">
+                            <option value="net_pnl" selected>NetPnL</option>
+                            <option value="profit_factor">PF</option>
+                            <option value="expectancy">Exp</option>
+                            <option value="max_drawdown">DD</option>
+                            <option value="win_rate">WR</option>
+                            <option value="trades">Trades</option>
+                        </select>
+                        <button class="btn btn-ghost" style="padding: 4px 10px; font-size: 12px;" onclick="loadBots()">⟳ Обновить</button>
+                    </div>
+                </div>
+                <table class="positions-table" id="research-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Бот</th>
+                            <th>Стратегия</th>
+                            <th>Mode</th>
+                            <th>Net PnL</th>
+                            <th>PF</th>
+                            <th>Exp</th>
+                            <th>DD%</th>
+                            <th>WR</th>
+                            <th>Trades</th>
+                        </tr>
+                    </thead>
+                    <tbody id="research-body">
+                        <tr><td colspan="10" class="no-positions">Пока нет данных, ждём первые сделки...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- CHART -->
+            <div class="chart-section" id="dashboard-panel">
+                <div class="chart-container" id="chart-container">
+                    <div class="chart-header">
+                        <div class="chart-title" id="chart-title">BTCUSDT</div>
+                        <div class="chart-controls">
+                            <button class="chart-btn chart-view-btn active" data-view="native" onclick="switchChartMode('native')">Chart</button>
+                            <button class="chart-btn chart-view-btn" data-view="tv" onclick="switchChartMode('tv')">TV</button>
+                            <button class="chart-btn chart-size-btn" onclick="setChartHeight(250, event)">S</button>
+                            <button class="chart-btn chart-size-btn active" onclick="setChartHeight(350, event)">M</button>
+                            <button class="chart-btn chart-size-btn" onclick="setChartHeight(500, event)">L</button>
+                        </div>
+                    </div>
+                    <div id="native-chart-wrap" style="height:100%;">
+                        <div id="lw-chart" style="width:100%; height:100%;"></div>
+                        <canvas id="main-chart" style="display:none;"></canvas>
+                    </div>
+                    <div id="tv-chart-wrap" style="display:none; height:100%; position:relative;">
+                        <iframe id="tv-iframe" title="TradingView" style="width:100%; height:100%; border:0; border-radius:8px;"></iframe>
+                        <div id="tv-markers-layer" style="position:absolute; inset:0; pointer-events:none;"></div>
+                    </div>
+                    <div class="chart-resizer" id="chart-resizer" title="Тяни вверх/вниз"></div>
+                </div>
+                
+                <!-- TRADES -->
+                <div class="trades-section">
+                    <div class="positions-title" style="margin-bottom: 12px;">
+                        История сделок
+                    </div>
+                    <table class="trades-table">
+                        <thead>
+                            <tr>
+                                <th>Время</th>
+                                <th>Вход</th>
+                                <th>Выход</th>
+                                <th>PnL</th>
+                                <th>Плечо</th>
+                                <th>Маржа</th>
+                                <th>Тип</th>
+                                <th>Причина</th>
+                            </tr>
+                        </thead>
+                        <tbody id="trades-body">
+                            <tr><td colspan="8" class="muted">Нет сделок</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- BACKTEST TAB -->
+            <div class="chart-section" id="backtest-panel" style="display:none;">
+                <div class="trades-section">
+                    <div class="positions-title" style="margin-bottom: 12px;">Backtest</div>
+                    <div style="display:grid; grid-template-columns: repeat(6, minmax(90px, 1fr)); gap:8px; margin-bottom:12px;">
+                        <input id="bt-symbol" class="search-box" value="BTCUSDT" placeholder="SYMBOL">
+                        <select id="bt-strategy" class="filter-select">
+                            <option value="rsi">RSI</option>
+                            <option value="macd">MACD</option>
+                            <option value="bollinger">Bollinger</option>
+                            <option value="ema">EMA</option>
+                        </select>
+                        <input id="bt-days" class="search-box" type="number" value="30" min="3" max="365" placeholder="days">
+                        <input id="bt-tp" class="search-box" type="number" step="0.1" value="2.0" placeholder="TP %">
+                        <input id="bt-sl" class="search-box" type="number" step="0.1" value="1.2" placeholder="SL %">
+                        <button class="btn btn-primary" onclick="runBacktestUI()">Запустить</button>
+                    </div>
+                    <pre id="backtest-result" style="white-space:pre-wrap; color:var(--text-secondary); background:var(--bg-primary); border:1px solid var(--border); padding:12px; border-radius:8px;">Выбери параметры и нажми "Запустить"</pre>
+                </div>
+            </div>
+
+            <!-- ANALYTICS TAB -->
+            <div class="chart-section" id="analytics-panel" style="display:none;">
+                <div class="trades-section">
+                    <div class="positions-title" style="margin-bottom: 12px;">Аналитика портфеля</div>
+                    <div id="analytics-content" class="muted">Загрузка...</div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- RIGHT SIDEBAR -->
+        <aside class="sidebar-right">
+            <div class="stats-card">
+                <div class="stats-card-title">Скорость мониторинга</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">API latency</div>
+                        <div class="stat-value" id="api-latency">- ms</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Payload</div>
+                        <div class="stat-value" id="api-payload">- KB</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Ботов</div>
+                        <div class="stat-value" id="active-bots">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Last update</div>
+                        <div class="stat-value" id="last-update">--:--</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-card">
+                <div class="stats-card-title">Лучшие стратегии</div>
+                <div id="strategy-leaders" style="font-size:12px; color: var(--text-secondary);">Пока нет данных</div>
+            </div>
+            
+            <div style="margin-top: 16px;">
+                <div class="stats-card-title">Выбранный бот</div>
+                <div id="bot-info" style="margin-top: 8px; color: var(--text-muted);">
+                    Выберите бота из списка
+                </div>
+            </div>
+            
+            <div id="bot-controls" style="margin-top: 16px; display: none;">
+                <div class="btn-group">
+                    <button class="btn btn-ghost" onclick="exportTrades()">📥 Экспорт сделок</button>
+                </div>
+            </div>
+        </aside>
+    </main>
+    
+    <div class="alerts" id="alerts"></div>
+    
+    <script>
+        const API = '/api';
+        let ws = null;
+        let botsCache = [];
+        let strategyLeadersCache = [];
+        let leaderboardCache = [];
+        let leaderboardPeriod = '24h';
+        let leaderboardSort = 'net_pnl';
+        let leaderboardMinTrades = 3;
+        let currentMainTab = 'dashboard';
+        let selectedBotId = null;
+        let selectedBotSymbol = 'BTCUSDT';
+        let mainChart = null; // legacy Chart.js fallback
+
+        // Custom dynamic chart (lightweight-charts)
+        let lwChart = null;
+        let lwCandles = null;
+        let lwPriceLines = [];
+
+        let chartViewMode = 'native';
+        let tvCurrentSymbol = null;
+        let chartHeightPx = 350;
+        let reconnectAttempts = 0;
+        let monitorPerf = { latencyMs: 0, payloadKb: 0, lastUpdate: null, serverMs: 0 };
+        let lastKlines = [];
+        
+        // === WEBSOCKET ===
+        function connectWS() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/api/ws`;
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = () => {
+                    reconnectAttempts = 0;
+                    updateWSStatus(true);
+                    ws.send(JSON.stringify({action: 'subscribe', bot_id: 'all'}));
+                };
+                
+                ws.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        handleWSMessage(data);
+                    } catch {}
+                };
+                
+                ws.onclose = () => {
+                    updateWSStatus(false);
+                    reconnectAttempts++;
+                    const delay = Math.min(5000 * reconnectAttempts, 30000);
+                    setTimeout(connectWS, delay);
+                };
+                
+                ws.onerror = () => ws.close();
+            } catch {
+                updateWSStatus(false);
+                setTimeout(connectWS, 5000);
+            }
+        }
+        
+        function updateWSStatus(online) {
+            const el = document.getElementById('ws-status');
+            if (online) {
+                el.innerHTML = '<div class="status-dot online"></div><span>Live</span>';
+            } else {
+                el.innerHTML = '<div class="status-dot offline"></div><span>Offline</span>';
+            }
+        }
+        
+        function handleWSMessage(data) {
+            if (data.type === 'trade' || data.type === 'position_open' || data.type === 'position_close') {
+                loadBots();
+                if (data.type === 'trade') showAlert('Новая сделка', 'info');
+            }
+            if (data.type === 'tp_hit') {
+                showAlert(`🎯 TP Hit! +$${data.pnl.toFixed(2)}`, 'success');
+            }
+            if (data.type === 'sl_hit') {
+                showAlert(`🛑 SL Hit! -$${Math.abs(data.pnl).toFixed(2)}`, 'error');
+            }
+        }
+        
+        // === ALERTS ===
+        function showAlert(message, type = 'info') {
+            const alerts = document.getElementById('alerts');
+            const alert = document.createElement('div');
+            alert.className = `alert ${type}`;
+            alert.innerHTML = `<span>${message}</span>`;
+            alerts.appendChild(alert);
+            setTimeout(() => alert.remove(), 4000);
+        }
+
+        async function runBacktestUI() {
+            const symbol = (document.getElementById('bt-symbol')?.value || 'BTCUSDT').toUpperCase();
+            const strategy_type = document.getElementById('bt-strategy')?.value || 'rsi';
+            const days = Number(document.getElementById('bt-days')?.value || 30);
+            const take_profit_pct = Number(document.getElementById('bt-tp')?.value || 2.0);
+            const stop_loss_pct = Number(document.getElementById('bt-sl')?.value || 1.2);
+            const out = document.getElementById('backtest-result');
+            if (out) out.textContent = 'Считаю...';
+
+            try {
+                const res = await fetch(`${API}/backtest/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, strategy_type, days, take_profit_pct, stop_loss_pct, position_size_pct: 10 }),
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.detail || 'Backtest failed');
+                const r = data.result || {};
+                if (out) {
+                    out.textContent = [
+                        `Strategy: ${r.strategy} | ${r.symbol}`,
+                        `Period: ${r.period}`,
+                        `PnL: ${Number(r.total_pnl || 0).toFixed(2)} USDT (${Number(r.total_pnl_percent || 0).toFixed(2)}%)`,
+                        `Trades: ${r.total_trades} | WinRate: ${Number(r.win_rate || 0).toFixed(1)}%`,
+                        `PF: ${Number(r.profit_factor || 0).toFixed(2)} | Sharpe: ${Number(r.sharpe_ratio || 0).toFixed(2)} | DD: ${Number(r.max_drawdown_percent || 0).toFixed(2)}%`
+                    ].join('\n');
+                }
+            } catch (e) {
+                if (out) out.textContent = `Ошибка backtest: ${e.message || e}`;
+            }
+        }
+
+        async function loadAnalyticsUI() {
+            const el = document.getElementById('analytics-content');
+            if (!el) return;
+            el.textContent = 'Загрузка...';
+            try {
+                const [pRes, lbRes] = await Promise.all([
+                    fetch(`${API}/analytics/portfolio`),
+                    fetch(`${API}/leaderboard?period=24h&sort=net_pnl&limit=5&min_trades=1`),
+                ]);
+                const p = await pRes.json();
+                const lb = await lbRes.json();
+                const top = (lb.leaderboard || []).slice(0, 5);
+
+                const html = [];
+                html.push(`<div style="margin-bottom:10px;">Top 5 (24h):</div>`);
+                html.push('<div>');
+                top.forEach((r, i) => {
+                    const pnl = Number(r.net_pnl || 0);
+                    html.push(`<div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>${i+1}. ${r.name}</span><span class="${pnl>=0?'profit':'loss'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</span></div>`);
+                });
+                html.push('</div>');
+
+                const prof = (((p || {}).data || {}).top_by_profit || []).slice(0, 3);
+                if (prof.length) {
+                    html.push('<hr style="border:0;border-top:1px solid var(--border);margin:10px 0;"/>');
+                    html.push('<div style="margin-bottom:8px;">Portfolio top_by_profit:</div>');
+                    prof.forEach((x) => {
+                        const pnl = Number(x.pnl || x.profit || 0);
+                        html.push(`<div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>${x.name || x.bot_name || 'Bot'}</span><span class="${pnl>=0?'profit':'loss'}">${pnl>=0?'+':''}$${pnl.toFixed(2)}</span></div>`);
+                    });
+                }
+
+                el.innerHTML = html.join('');
+            } catch (e) {
+                el.textContent = `Ошибка загрузки аналитики: ${e.message || e}`;
+            }
+        }
+
+        function switchMainTab(tab) {
+            currentMainTab = tab;
+            const research = document.getElementById('research-board');
+            const dash = document.getElementById('dashboard-panel');
+            const bt = document.getElementById('backtest-panel');
+            const an = document.getElementById('analytics-panel');
+            const right = document.querySelector('.sidebar-right');
+
+            if (!research || !dash || !bt || !an || !right) return;
+
+            if (tab === 'dashboard') {
+                research.style.display = selectedBotId ? 'none' : 'block';
+                dash.style.display = 'block';
+                bt.style.display = 'none';
+                an.style.display = 'none';
+                right.style.display = 'block';
+            } else if (tab === 'bots') {
+                research.style.display = 'none';
+                dash.style.display = 'block';
+                bt.style.display = 'none';
+                an.style.display = 'none';
+                right.style.display = 'block';
+            } else if (tab === 'backtest') {
+                research.style.display = 'none';
+                dash.style.display = 'none';
+                bt.style.display = 'block';
+                an.style.display = 'none';
+                right.style.display = 'none';
+            } else if (tab === 'analytics') {
+                research.style.display = 'none';
+                dash.style.display = 'none';
+                bt.style.display = 'none';
+                an.style.display = 'block';
+                right.style.display = 'none';
+                loadAnalyticsUI();
+            }
+        }
+        
+        // === DATA LOADING ===
+        async function loadBots() {
+            const t0 = performance.now();
+            try {
+                const res = await fetch(`${API}/research/bots`);
+                const raw = await res.text();
+                const latencyMs = performance.now() - t0;
+                const payloadKb = raw.length / 1024;
+
+                const data = JSON.parse(raw);
+                botsCache = data.bots || [];
+                strategyLeadersCache = data.strategy_leaders || [];
+
+                // Load leaderboard (persisted metrics)
+                try {
+                    const qs = new URLSearchParams({
+                        period: leaderboardPeriod,
+                        sort: leaderboardSort,
+                        limit: '12',
+                        min_trades: String(leaderboardMinTrades)
+                    });
+                    const lbRes = await fetch(`${API}/leaderboard?${qs.toString()}`);
+                    const lbData = await lbRes.json();
+                    leaderboardCache = lbData.leaderboard || [];
+                } catch (e) {
+                    leaderboardCache = [];
+                }
+
+                monitorPerf = {
+                    latencyMs,
+                    payloadKb,
+                    serverMs: Number((data.meta && data.meta.server_ms) || 0),
+                    lastUpdate: new Date()
+                };
+
+                document.getElementById('bot-count').textContent = botsCache.length;
+
+                renderBotList();
+                renderResearchBoard();
+                toggleResearchBoard();
+                renderMonitoringStats();
+                renderStrategyLeaders();
+
+                if (selectedBotId) {
+                    await loadBotDetail(selectedBotId);
+                }
+            } catch (e) {
+                console.error('Load error:', e);
+            }
+        }
+        
+        // === RENDER BOT LIST ===
+        function renderBotList() {
+            const search = document.getElementById('searchBox').value.toLowerCase();
+            const mode = document.getElementById('filterMode').value.toLowerCase();
+            const sort = document.getElementById('sortBy').value;
+            
+            let filtered = botsCache.filter(b => {
+                const matchSearch = !search || b.name.toLowerCase().includes(search) || b.symbol.toLowerCase().includes(search);
+                const matchMode = !mode || b.mode.name.toLowerCase() === mode;
+                return matchSearch && matchMode;
+            });
+            
+            if (sort === 'profit') filtered.sort((a, b) => b.stats.total_profit_usdt - a.stats.total_profit_usdt);
+            else if (sort === 'winrate') filtered.sort((a, b) => b.stats.win_rate - a.stats.win_rate);
+            else if (sort === 'trades') filtered.sort((a, b) => b.stats.total_trades - a.stats.total_trades);
+            
+            const container = document.getElementById('bot-list');
+            
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="no-positions">Нет ботов</div>';
+                return;
+            }
+            
+            container.innerHTML = filtered.map(bot => {
+                const pnl = bot.stats.total_profit_usdt;
+                const pnlClass = pnl >= 0 ? 'profit' : 'loss';
+                const activeClass = bot.bot_id === selectedBotId ? 'active' : '';
+                const posIcon = bot.has_position ? '📍' : '';
+                
+                return `
+                    <div class="bot-item ${activeClass}" onclick="selectBot(${bot.bot_id})">
+                        <div class="bot-item-header">
+                            <div>
+                                <div class="bot-name">${posIcon} ${bot.name}</div>
+                                <div class="bot-symbol">${bot.symbol}</div>
+                            </div>
+                            <div class="bot-pnl ${pnlClass}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</div>
+                        </div>
+                        <div class="bot-meta">
+                            <span>${bot.mode.name}</span>
+                            <span>WR: ${bot.stats.win_rate.toFixed(0)}%</span>
+                            <span>${bot.stats.total_trades} trades</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // === RESEARCH SCORE ===
+        function getBotScore(bot) {
+            const pnl = bot.stats.total_profit_usdt || 0;
+            const wr = bot.stats.win_rate || 0;
+            const trades = bot.stats.total_trades || 0;
+            const activityBoost = Math.min(trades, 20) * 0.5;
+            return (pnl * 8) + (wr * 0.6) + activityBoost;
+        }
+
+        // === RENDER RESEARCH BOARD (вместо списка позиций) ===
+        function renderResearchBoard() {
+            const tbody = document.getElementById('research-body');
+            if (!tbody) return;
+
+            const ranked = (leaderboardCache && leaderboardCache.length)
+                ? leaderboardCache.slice(0, 12)
+                : [];
+
+            document.getElementById('research-count').textContent = ranked.length;
+
+            if (ranked.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="no-positions">Пока нет данных</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = ranked.map((r, idx) => {
+                const pnl = Number(r.net_pnl || 0);
+                const pf = Number(r.profit_factor || 0);
+                const exp = Number(r.expectancy || 0);
+                const dd = Number(r.max_drawdown_pct || 0);
+                const wr = Number(r.win_rate || 0);
+                const trades = Number(r.trades || 0);
+                const pnlClass = pnl >= 0 ? 'profit' : 'loss';
+
+                return `
+                    <tr onclick="selectBot(${r.bot_id})" style="cursor:pointer;">
+                        <td>${idx + 1}</td>
+                        <td style="font-weight:500; color:var(--text-primary);">${String(r.name || '').substring(0, 22)}</td>
+                        <td class="muted">${String(r.strategy || '').substring(0, 16)}</td>
+                        <td class="muted">${String(r.mode || '').substring(0, 12)}</td>
+                        <td class="${pnlClass}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                        <td>${pf.toFixed(2)}</td>
+                        <td>${exp.toFixed(3)}</td>
+                        <td>${dd.toFixed(1)}%</td>
+                        <td>${wr.toFixed(0)}%</td>
+                        <td>${trades}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // === MONITORING SPEED STATS ===
+        function renderMonitoringStats() {
+            const active = botsCache.filter(b => b.is_running).length;
+            document.getElementById('active-bots').textContent = active;
+
+            const server = Number(monitorPerf.serverMs || 0);
+            const e2e = Number(monitorPerf.latencyMs || 0);
+            document.getElementById('api-latency').textContent = server > 0
+                ? `${server.toFixed(0)} ms (srv)`
+                : `${e2e.toFixed(0)} ms`;
+
+            document.getElementById('api-payload').textContent = `${monitorPerf.payloadKb.toFixed(1)} KB`;
+            document.getElementById('last-update').textContent = monitorPerf.lastUpdate
+                ? monitorPerf.lastUpdate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                : '--:--';
+        }
+
+        // === STRATEGY LEADERS ===
+        function renderStrategyLeaders() {
+            const el = document.getElementById('strategy-leaders');
+            if (!el) return;
+
+            const rows = (strategyLeadersCache || []).slice(0, 5);
+            if (rows.length === 0) {
+                el.innerHTML = 'Пока нет данных';
+                return;
+            }
+
+            el.innerHTML = rows.map((r, i) => {
+                const pnl = Number(r.pnl || 0);
+                const pnlClass = pnl >= 0 ? 'profit' : 'loss';
+                return `<div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <span>${i + 1}. ${r.name}</span>
+                    <span class="${pnlClass}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</span>
+                </div>`;
+            }).join('');
+        }
+        
+        function applyLeaderboardParams() {
+            const p = document.getElementById('lbPeriod');
+            const s = document.getElementById('lbSort');
+            if (p) leaderboardPeriod = p.value;
+            if (s) leaderboardSort = s.value;
+            loadBots();
+        }
+
+        function toggleResearchBoard() {
+            const board = document.getElementById('research-board');
+            if (!board) return;
+            if (currentMainTab !== 'dashboard') {
+                board.style.display = 'none';
+                return;
+            }
+            board.style.display = selectedBotId ? 'none' : 'block';
+        }
+
+        // === SELECT BOT ===
+        async function selectBot(botId) {
+            // клик по уже выбранному боту = снять выбор
+            selectedBotId = (selectedBotId === botId) ? null : botId;
+            renderBotList();
+            toggleResearchBoard();
+
+            if (selectedBotId) {
+                await loadBotDetail(selectedBotId);
+            } else {
+                clearBotDetail();
+            }
+        }
+
+        async function loadBotDetail(botId) {
+            try {
+                const res = await fetch(`${API}/bots/${botId}`);
+                const data = await res.json();
+                if (data && data.bot) {
+                    await renderBotDetail(data.bot);
+                }
+            } catch (e) {
+                console.error('detail load error:', e);
+            }
+        }
+        
+        function clearBotDetail() {
+            selectedBotSymbol = 'BTCUSDT';
+            document.getElementById('chart-title').textContent = 'BTCUSDT';
+            document.getElementById('bot-info').innerHTML = 'Выберите бота из списка';
+            document.getElementById('bot-controls').style.display = 'none';
+            document.getElementById('trades-body').innerHTML = '<tr><td colspan="8" class="muted">Нет сделок</td></tr>';
+            loadChart('BTCUSDT', null);
+            updateTradingViewFrame('BTCUSDT');
+            renderTVMarkers([], []);
+        }
+
+        async function renderBotDetail(bot) {
+            selectedBotSymbol = bot.symbol;
+            // Update chart title
+            document.getElementById('chart-title').textContent = bot.symbol;
+            
+            // Bot info
+            const score = getBotScore(bot);
+            document.getElementById('bot-info').innerHTML = `
+                <div style="font-weight: 600; color: var(--text-primary);">${bot.name}</div>
+                <div style="margin-top: 4px;">${bot.symbol} • ${bot.strategy.name}</div>
+                <div style="margin-top: 4px;">${bot.mode.name}</div>
+                <div style="margin-top: 8px;">
+                    <div>Score: <span class="warning" style="font-weight:600;">${score.toFixed(1)}</span></div>
+                    <div>PnL: <span class="${bot.stats.total_profit_usdt >= 0 ? 'profit' : 'loss'}">${bot.stats.total_profit_usdt >= 0 ? '+' : ''}$${bot.stats.total_profit_usdt.toFixed(2)}</span></div>
+                    <div>Win Rate: ${bot.stats.win_rate.toFixed(0)}%</div>
+                    <div>Trades: ${bot.stats.total_trades}</div>
+                    <div>Status: ${bot.is_running ? '<span class="profit">Running</span>' : '<span class="loss">Stopped</span>'}</div>
+                </div>
+            `;
+            
+            document.getElementById('bot-controls').style.display = 'block';
+            
+            // Trades
+            const trades = bot.trades_history?.slice(-8).reverse() || [];
+            document.getElementById('trades-body').innerHTML = trades.length > 0 ? trades.map(t => {
+                const pnl = Number(t.pnl ?? t.profit_usdt ?? 0);
+                const lev = Number(t.leverage || 1);
+                const margin = Number(t.margin || 0);
+                const market = (t.market_type || 'spot').toUpperCase();
+                return `
+                <tr>
+                    <td class="muted">${t.exit_time ? new Date(t.exit_time).toLocaleString('ru', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-'}</td>
+                    <td>$${t.entry_price ? Number(t.entry_price).toFixed(2) : '-'}</td>
+                    <td>$${t.exit_price ? Number(t.exit_price).toFixed(2) : '-'}</td>
+                    <td class="${pnl >= 0 ? 'profit' : 'loss'}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+                    <td>${lev}x</td>
+                    <td>$${margin ? margin.toFixed(2) : '-'}</td>
+                    <td>${market}</td>
+                    <td class="muted">${t.reason || '-'}</td>
+                </tr>
+            `}).join('') : '<tr><td colspan="8" class="muted">Нет сделок</td></tr>';
+            
+            updateTradingViewFrame(bot.symbol);
+
+            // Load chart
+            await loadChart(bot.symbol, bot);
+        }
+        
+        function updateTradingViewFrame(symbol, force = false) {
+            const iframe = document.getElementById('tv-iframe');
+            if (!iframe || !symbol) return;
+
+            const tvSymbol = `MEXC:${symbol.toUpperCase()}`;
+            if (!force && tvCurrentSymbol === tvSymbol) return; // не перезагружаем тот же график
+
+            const src = `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}&interval=5&hidesidetoolbar=1&theme=dark&style=1&timezone=Etc/UTC&withdateranges=1&hideideas=1`;
+            iframe.src = src;
+            tvCurrentSymbol = tvSymbol;
+        }
+
+        // Legacy trades_history markers (kept for reference)
+        function renderTVMarkers(trades, klines) {
+            const layer = document.getElementById('tv-markers-layer');
+            if (!layer) return;
+            layer.innerHTML = '';
+
+            const legend = document.createElement('div');
+            legend.className = 'tv-markers-legend';
+            legend.innerHTML = '<span><i class="tv-dot in"></i>IN</span><span><i class="tv-dot out"></i>OUT</span>';
+            layer.appendChild(legend);
+
+            if (!trades || !trades.length || !klines || klines.length < 2) return;
+        }
+
+        // Event-sourced markers (preferred)
+        function renderTVMarkersFromEvents(events, klines) {
+            const layer = document.getElementById('tv-markers-layer');
+            if (!layer) return;
+            layer.innerHTML = '';
+
+            const legend = document.createElement('div');
+            legend.className = 'tv-markers-legend';
+            legend.innerHTML = [
+                '<span><i class="tv-dot in"></i>IN</span>',
+                '<span><i class="tv-dot out"></i>OUT</span>',
+                '<span><i class="tv-dot tp"></i>TP</span>',
+                '<span><i class="tv-dot sl"></i>SL</span>',
+                '<span><i class="tv-dot set"></i>SET</span>'
+            ].join('');
+            layer.appendChild(legend);
+
+            if (!events || !events.length || !klines || klines.length < 2) return;
+
+            const t0 = Number(klines[0][0]);
+            const t1 = Number(klines[klines.length - 1][0]);
+            const highs = klines.map(k => Number(k[2]));
+            const lows = klines.map(k => Number(k[3]));
+            const pMin = Math.min(...lows);
+            const pMax = Math.max(...highs);
+            const pRange = Math.max(0.0000001, pMax - pMin);
+            const tRange = Math.max(1, t1 - t0);
+
+            const posX = (ts) => Math.min(0.98, Math.max(0.02, (ts - t0) / tRange));
+            const posY = (price) => Math.min(0.96, Math.max(0.06, 1 - ((price - pMin) / pRange)));
+
+            const recent = (events || [])
+                .filter(e => ['FILL_ENTRY','FILL_EXIT','TP_SET','SL_SET','TP_HIT','SL_HIT'].includes(String(e.event_type || '').toUpperCase()))
+                .slice(-80);
+            recent.forEach(ev => {
+                const type = String(ev.event_type || '').toUpperCase();
+                const ts = Number(ev.ts_exchange_ms || ev.ts_server_ms || 0);
+                const px = Number(ev.price || 0);
+                if (!ts || !px) return;
+
+                // Sanity checks
+                if (ts < t0 || ts > t1 || px < (pMin - pRange * 0.2) || px > (pMax + pRange * 0.2)) {
+                    return;
+                }
+
+                const el = document.createElement('div');
+
+                const iso = new Date(ts).toISOString();
+
+                if (type === 'FILL_ENTRY') {
+                    el.className = 'tv-marker entry';
+                    el.textContent = 'IN';
+                    el.title = `FILL_ENTRY | ${iso} | ${px}`;
+                } else if (type === 'FILL_EXIT') {
+                    el.className = 'tv-marker exit';
+                    const pnl = Number(ev.pnl || 0);
+                    el.textContent = `OUT ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`;
+                    el.title = `FILL_EXIT | ${iso} | ${ev.reason || 'exit'} | pnl ${pnl}`;
+                } else if (type === 'TP_SET') {
+                    el.className = 'tv-marker tp-set';
+                    el.textContent = 'TP•';
+                    el.title = `TP_SET | ${iso} | ${px}`;
+                } else if (type === 'SL_SET') {
+                    el.className = 'tv-marker sl-set';
+                    el.textContent = 'SL•';
+                    el.title = `SL_SET | ${iso} | ${px}`;
+                } else if (type === 'TP_HIT') {
+                    el.className = 'tv-marker tp-hit';
+                    el.textContent = 'TP';
+                    el.title = `TP_HIT | ${iso} | ${px}`;
+                } else if (type === 'SL_HIT') {
+                    el.className = 'tv-marker sl-hit';
+                    el.textContent = 'SL';
+                    el.title = `SL_HIT | ${iso} | ${px} | ${ev.reason || ''}`;
+                } else {
+                    return;
+                }
+
+                el.style.left = `${(posX(ts) * 100).toFixed(2)}%`;
+                el.style.top = `${(posY(px) * 100).toFixed(2)}%`;
+                layer.appendChild(el);
+            });
+        }
+
+        function switchChartMode(mode) {
+            chartViewMode = mode;
+
+            const nativeWrap = document.getElementById('native-chart-wrap');
+            const tvWrap = document.getElementById('tv-chart-wrap');
+
+            if (mode === 'tv') {
+                nativeWrap.style.display = 'none';
+                tvWrap.style.display = 'block';
+                updateTradingViewFrame(selectedBotSymbol || 'BTCUSDT');
+            } else {
+                nativeWrap.style.display = 'block';
+                tvWrap.style.display = 'none';
+                if (mainChart) mainChart.resize();
+                resizeLWChart();
+            }
+
+            document.querySelectorAll('.chart-view-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.querySelector(`.chart-view-btn[data-view="${mode}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+        }
+
+        // === CHART ===
+        function ensureLWChart() {
+            const el = document.getElementById('lw-chart');
+            if (!el) return;
+            if (lwChart && lwCandles) return;
+
+            lwChart = LightweightCharts.createChart(el, {
+                layout: {
+                    background: { color: '#1e2329' },
+                    textColor: '#cbd5e1',
+                    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                },
+                grid: {
+                    vertLines: { color: '#2b3139' },
+                    horzLines: { color: '#2b3139' },
+                },
+                timeScale: {
+                    timeVisible: true,
+                    secondsVisible: false,
+                    borderColor: '#2b3139',
+                },
+                rightPriceScale: {
+                    borderColor: '#2b3139',
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                handleScroll: true,
+                handleScale: true,
+            });
+
+            lwCandles = lwChart.addCandlestickSeries({
+                upColor: '#0ecb81',
+                downColor: '#f6465d',
+                borderUpColor: '#0ecb81',
+                borderDownColor: '#f6465d',
+                wickUpColor: '#0ecb81',
+                wickDownColor: '#f6465d',
+            });
+
+            resizeLWChart();
+        }
+
+        function resizeLWChart() {
+            if (!lwChart) return;
+            const box = document.getElementById('chart-container');
+            const el = document.getElementById('lw-chart');
+            if (!box || !el) return;
+            const rect = box.getBoundingClientRect();
+            const w = Math.max(200, Math.round(rect.width - 32));
+            const h = Math.max(200, Math.round(rect.height - 56));
+            lwChart.resize(w, h);
+        }
+
+        function renderLWChart(klines, events) {
+            ensureLWChart();
+            if (!lwChart || !lwCandles) return;
+
+            const candles = (klines || []).map(k => ({
+                time: Math.floor(Number(k[0]) / 1000),
+                open: Number(k[1]),
+                high: Number(k[2]),
+                low: Number(k[3]),
+                close: Number(k[4]),
+            }));
+            lwCandles.setData(candles);
+
+            // markers
+            const markers = (events || [])
+                .filter(e => ['FILL_ENTRY','FILL_EXIT','TP_SET','SL_SET','TP_HIT','SL_HIT'].includes(String(e.event_type || '').toUpperCase()))
+                .map(e => {
+                    const type = String(e.event_type || '').toUpperCase();
+                    const ts = Number(e.ts_exchange_ms || e.ts_server_ms || 0);
+                    const t = Math.floor(ts / 1000);
+                    if (type === 'FILL_ENTRY') return { time: t, position: 'belowBar', color: '#0ea5e9', shape: 'arrowUp', text: 'IN' };
+                    if (type === 'FILL_EXIT') return { time: t, position: 'aboveBar', color: '#ef4444', shape: 'arrowDown', text: 'OUT' };
+                    if (type === 'TP_SET') return { time: t, position: 'aboveBar', color: '#22c55e', shape: 'circle', text: 'TP•' };
+                    if (type === 'SL_SET') return { time: t, position: 'belowBar', color: '#f97316', shape: 'circle', text: 'SL•' };
+                    if (type === 'TP_HIT') return { time: t, position: 'aboveBar', color: '#16a34a', shape: 'circle', text: 'TP' };
+                    if (type === 'SL_HIT') return { time: t, position: 'belowBar', color: '#dc2626', shape: 'circle', text: 'SL' };
+                    return null;
+                })
+                .filter(Boolean);
+
+            if (typeof lwCandles.setMarkers === 'function') {
+                lwCandles.setMarkers(markers);
+            } else if (typeof LightweightCharts.createSeriesMarkers === 'function') {
+                LightweightCharts.createSeriesMarkers(lwCandles, markers);
+            }
+
+            // planned TP/SL as price lines (latest)
+            try {
+                for (const pl of lwPriceLines) lwCandles.removePriceLine(pl);
+            } catch (e) {}
+            lwPriceLines = [];
+
+            const lastTP = [...(events || [])].reverse().find(e => String(e.event_type || '').toUpperCase() === 'TP_SET');
+            const lastSL = [...(events || [])].reverse().find(e => String(e.event_type || '').toUpperCase() === 'SL_SET');
+
+            if (lastTP && lastTP.price) {
+                lwPriceLines.push(lwCandles.createPriceLine({
+                    price: Number(lastTP.price),
+                    color: 'rgba(14,203,129,0.9)',
+                    lineWidth: 1,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    title: 'TP',
+                }));
+            }
+            if (lastSL && lastSL.price) {
+                lwPriceLines.push(lwCandles.createPriceLine({
+                    price: Number(lastSL.price),
+                    color: 'rgba(246,70,93,0.9)',
+                    lineWidth: 1,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    title: 'SL',
+                }));
+            }
+        }
+
+        async function loadChart(symbol, bot) {
+            try {
+                const res = await fetch(`${API}/klines/${symbol}?interval=5m&limit=60`);
+                const data = await res.json();
+                const klines = data.klines || [];
+                lastKlines = klines;
+
+                // Prefer event-sourced markers
+                let events = [];
+                try {
+                    const botId = bot?.id || bot?.bot_id || null;
+                    const qs = new URLSearchParams({ symbol: symbol, limit: '500' });
+                    if (botId != null) qs.set('bot_id', String(botId));
+                    const evRes = await fetch(`${API}/events?${qs.toString()}`);
+                    const evData = await evRes.json();
+                    events = evData.events || [];
+                } catch (e) {}
+
+                renderTVMarkersFromEvents(events, klines);
+
+                // Preferred: custom lightweight chart. Fallback to Chart.js if library fails.
+                let lwRendered = false;
+                try {
+                    const lwEl = document.getElementById('lw-chart');
+                    const cEl = document.getElementById('main-chart');
+                    if (lwEl) lwEl.style.display = 'block';
+                    if (cEl) cEl.style.display = 'none';
+                    renderLWChart(klines, events);
+                    lwRendered = true;
+                } catch (e) {
+                    lwRendered = false;
+                }
+                if (lwRendered) return;
+
+                const lwEl = document.getElementById('lw-chart');
+                const cEl = document.getElementById('main-chart');
+                if (lwEl) lwEl.style.display = 'none';
+                if (cEl) cEl.style.display = 'block';
+
+                const labels = klines.map(k => new Date(k[0]).toLocaleTimeString('ru', {hour:'2-digit',minute:'2-digit'}));
+                const prices = klines.map(k => parseFloat(k[4]));
+                
+                const ctx = document.getElementById('main-chart');
+                if (mainChart) mainChart.destroy();
+                
+                const annotations = {};
+                
+                if (bot?.current_position && bot?.mode) {
+                    const entry = bot.current_position.entry_price;
+                    const tp = entry * (1 + bot.mode.take_profit_pct / 100);
+                    const sl = entry * (1 - bot.mode.stop_loss_pct / 100);
+                    
+                    annotations['entry'] = {
+                        type: 'line', yMin: entry, yMax: entry,
+                        borderColor: '#f0b90b', borderWidth: 2, borderDash: [5, 5]
+                    };
+                    annotations['tp'] = {
+                        type: 'line', yMin: tp, yMax: tp,
+                        borderColor: '#0ecb81', borderWidth: 1, borderDash: [8, 4]
+                    };
+                    annotations['sl'] = {
+                        type: 'line', yMin: sl, yMax: sl,
+                        borderColor: '#f6465d', borderWidth: 1, borderDash: [8, 4]
+                    };
+                }
+                
+                mainChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [{
+                            data: prices,
+                            borderColor: '#2962ff',
+                            backgroundColor: 'rgba(41, 98, 255, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            tension: 0.1,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        animation: false,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { display: false },
+                            annotation: { annotations },
+                            tooltip: {
+                                backgroundColor: '#1e2329',
+                                titleColor: '#eaecef',
+                                bodyColor: '#848e9c',
+                                borderColor: '#2b3139',
+                                borderWidth: 1,
+                                padding: 10,
+                                displayColors: false,
+                                callbacks: {
+                                    label: ctx => `$${ctx.parsed.y.toFixed(2)}`
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                ticks: { color: '#5e6673', callback: v => '$' + v.toFixed(0) },
+                                grid: { color: '#2b3139' }
+                            },
+                            x: {
+                                ticks: { color: '#5e6673', maxTicksLimit: 8 },
+                                grid: { color: '#2b3139' }
+                            }
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Chart error:', e);
+            }
+        }
+        
+        function applyChartHeight(h) {
+            const box = document.getElementById('chart-container');
+            if (!box) return;
+            const clamped = Math.max(260, Math.min(900, Math.round(h)));
+            chartHeightPx = clamped;
+            box.style.height = clamped + 'px';
+            if (mainChart) mainChart.resize();
+            resizeLWChart();
+        }
+
+        function setChartHeight(h, ev) {
+            applyChartHeight(h);
+            document.querySelectorAll('.chart-size-btn').forEach(btn => btn.classList.remove('active'));
+            if (ev && ev.target) ev.target.classList.add('active');
+        }
+
+        function initChartResizer() {
+            const handle = document.getElementById('chart-resizer');
+            if (!handle) return;
+
+            let dragging = false;
+            let startY = 0;
+            let startH = chartHeightPx;
+
+            const onMove = (e) => {
+                if (!dragging) return;
+                const dy = (e.clientY || (e.touches && e.touches[0]?.clientY) || startY) - startY;
+                applyChartHeight(startH + dy);
+            };
+
+            const onUp = () => {
+                dragging = false;
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', onUp);
+                window.removeEventListener('touchmove', onMove);
+                window.removeEventListener('touchend', onUp);
+            };
+
+            const onDown = (e) => {
+                dragging = true;
+                startY = e.clientY || (e.touches && e.touches[0]?.clientY) || 0;
+                startH = chartHeightPx;
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+                window.addEventListener('touchmove', onMove, { passive: true });
+                window.addEventListener('touchend', onUp);
+            };
+
+            handle.addEventListener('mousedown', onDown);
+            handle.addEventListener('touchstart', onDown, { passive: true });
+        }
+        
+        // === BOT ACTIONS ===
+        function exportTrades() {
+            if (!selectedBotId) return;
+            window.open(`${API}/export/trades/${selectedBotId}`, '_blank');
+        }
+        
+        // === FILTERS ===
+        document.getElementById('searchBox').addEventListener('input', renderBotList);
+        document.getElementById('filterMode').addEventListener('change', renderBotList);
+        document.getElementById('sortBy').addEventListener('change', renderBotList);
+        
+        // === TABS ===
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                switchMainTab(item.dataset.tab || 'dashboard');
+            });
+        });
+        
+        // === INIT ===
+        connectWS();
+        applyChartHeight(chartHeightPx);
+        initChartResizer();
+        switchChartMode(chartViewMode);
+        switchMainTab('dashboard');
+        window.addEventListener('resize', () => resizeLWChart());
+        loadBots();
+
+        // Auto-refresh every 10s (быстрый мониторинг)
+        setInterval(loadBots, 10000);
+    </script>
+</body>
+</html>

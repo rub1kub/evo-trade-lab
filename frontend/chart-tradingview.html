@@ -1,0 +1,72 @@
+<!-- TradingView Widget для профессиональных графиков -->
+<div id="tradingview_widget" style="height: 500px; background: #1a1a1a;"></div>
+
+<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+<script type="text/javascript">
+function initTradingViewWidget(symbol, trades, currentPosition) {
+    // Конвертация символа (BTCUSDT -> BTCUSD для TradingView)
+    const tvSymbol = symbol.replace('USDT', 'USD');
+    
+    new TradingView.widget({
+        "width": "100%",
+        "height": 500,
+        "symbol": `BINANCE:${tvSymbol}`,
+        "interval": "5",
+        "timezone": "Etc/UTC",
+        "theme": "dark",
+        "style": "1", // 1 = Bars, 2 = Candles, 3 = Line, 8 = Hollow Candles
+        "locale": "ru",
+        "toolbar_bg": "#0f0f0f",
+        "enable_publishing": false,
+        "hide_side_toolbar": false,
+        "allow_symbol_change": false,
+        "save_image": false,
+        "container_id": "tradingview_widget",
+        "studies": [
+            "RSI@tv-basicstudies",
+            "MACD@tv-basicstudies"
+        ],
+        // Метки входа/выхода (если есть)
+        "drawings": generateDrawings(trades, currentPosition)
+    });
+}
+
+function generateDrawings(trades, currentPosition) {
+    const drawings = [];
+    
+    // Метки сделок
+    if (trades && trades.length > 0) {
+        trades.forEach(trade => {
+            drawings.push({
+                type: 'ray',
+                price: trade.entry_price,
+                time: new Date(trade.entry_time).getTime() / 1000,
+                color: '#4ade80',
+                text: '🟢 Вход'
+            });
+            
+            drawings.push({
+                type: 'ray',
+                price: trade.exit_price,
+                time: new Date(trade.exit_time).getTime() / 1000,
+                color: '#ef4444',
+                text: '🔴 Выход'
+            });
+        });
+    }
+    
+    // Текущая позиция
+    if (currentPosition) {
+        drawings.push({
+            type: 'horizontal_line',
+            price: currentPosition.entry_price,
+            color: '#fbbf24',
+            linewidth: 2,
+            linestyle: 2, // dashed
+            text: '📍 Открытая позиция'
+        });
+    }
+    
+    return drawings;
+}
+</script>
