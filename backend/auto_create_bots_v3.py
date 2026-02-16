@@ -20,6 +20,9 @@ from strategies.dca_strategy import DCAStrategy
 from strategies.crowd_psychology import CrowdPsychologyStrategy
 from strategies.news_flow_proxy import NewsFlowProxyStrategy
 from strategies.adaptive_hybrid_alpha import AdaptiveHybridAlphaStrategy
+from strategies.momentum_roc import MomentumROCStrategy
+from strategies.williams_r import WilliamsRStrategy
+from strategies.ichimoku_strategy import IchimokuStrategy
 
 
 # Расширенный список монет
@@ -258,22 +261,7 @@ for coin in crowd_coins:
         'leverage': 8 if not is_meme else 12,
     })
 
-# 12. News Flow Proxy боты (новостной фон через market-shock proxy)
-news_coins = ['BTC', 'ETH', 'SOL', 'OP', 'NEAR', 'ARB']
-for coin in news_coins:
-    BOT_CONFIGS_V3.append({
-        'name': f'NEWS-{coin} 📰',
-        'symbol': f'{coin}USDT',
-        'strategy': NewsFlowProxyStrategy(
-            shock_z_threshold=2.0,
-            reverse_z_threshold=1.3,
-            position_size_pct=30,
-        ),
-        'mode': 'scalp',
-        'balance': 120,
-        'interval': '1m',
-        'leverage': 9,
-    })
+# 12. [REMOVED] News Flow Proxy — consistently negative, cut from gene pool
 
 # 13. Adaptive Hybrid Alpha (тех+психология+news proxy)
 hybrid_coins = ['BTC', 'ETH', 'SOL', 'NEAR', 'DOGE', 'PEPE']
@@ -353,6 +341,96 @@ for coin in hyper_combo_coins:
         'balance': 140,
         'interval': '1m',
         'leverage': 12 if coin in ['SOL', 'NEAR'] else 10,
+    })
+
+
+# 17. Momentum ROC bots
+roc_coins = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB', 'ARB', 'DOGE']
+for coin in roc_coins:
+    vol = COINS.get(coin, {}).get('volatility', 'medium')
+    buy_t = 0.8 if vol in ('high', 'very_high') else 1.2
+    sell_t = -buy_t
+    BOT_CONFIGS_V3.append({
+        'name': f'ROC-{coin} 🚀',
+        'symbol': f'{coin}USDT',
+        'strategy': MomentumROCStrategy(roc_period=10, buy_threshold=buy_t, sell_threshold=sell_t),
+        'mode': 'scalp' if vol in ('high', 'very_high') else 'aggressive',
+        'balance': 120,
+        'interval': '1m',
+        'leverage': 9,
+    })
+
+# 18. Williams %R bots
+wr_coins = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB', 'NEAR', 'DOGE', 'ARB']
+for coin in wr_coins:
+    vol = COINS.get(coin, {}).get('volatility', 'medium')
+    os_lvl = -75 if vol in ('high', 'very_high') else -82
+    ob_lvl = -25 if vol in ('high', 'very_high') else -18
+    BOT_CONFIGS_V3.append({
+        'name': f'WR-{coin} 📊',
+        'symbol': f'{coin}USDT',
+        'strategy': WilliamsRStrategy(period=12, oversold=os_lvl, overbought=ob_lvl),
+        'mode': 'scalp',
+        'balance': 120,
+        'interval': '1m',
+        'leverage': 8,
+    })
+
+# 19. Ichimoku Cloud bots
+ichi_coins = ['BTC', 'ETH', 'SOL', 'XRP', 'BNB']
+for coin in ichi_coins:
+    BOT_CONFIGS_V3.append({
+        'name': f'ICHI-{coin} ☁️',
+        'symbol': f'{coin}USDT',
+        'strategy': IchimokuStrategy(tenkan=7, kijun=22, senkou_b=44),
+        'mode': 'balanced_plus',
+        'balance': 130,
+        'interval': '1m',
+        'leverage': 8,
+    })
+
+# 20. Extended scalp swarm v2 (more coins, tighter params)
+scalp_v2_coins = ['NEAR', 'SUI', 'APT', 'INJ', 'FTM', 'AVAX', 'LINK', 'PEPE']
+for coin in scalp_v2_coins:
+    BOT_CONFIGS_V3.append({
+        'name': f'SCALP2-RSI {coin} ⚡',
+        'symbol': f'{coin}USDT',
+        'strategy': RSIStrategy(rsi_period=5, rsi_oversold=42, rsi_overbought=58),
+        'mode': 'scalp',
+        'balance': 110,
+        'interval': '1m',
+        'leverage': 10,
+    })
+    BOT_CONFIGS_V3.append({
+        'name': f'SCALP2-WR {coin} 📊',
+        'symbol': f'{coin}USDT',
+        'strategy': WilliamsRStrategy(period=10, oversold=-78, overbought=-22),
+        'mode': 'scalp',
+        'balance': 110,
+        'interval': '1m',
+        'leverage': 9,
+    })
+
+# 21. XRP focus cluster (dominant winner — extra mutations)
+xrp_cluster = [
+    {'tag': 'ROC-A', 'strategy': MomentumROCStrategy(roc_period=8, buy_threshold=0.7, sell_threshold=-0.7), 'mode': 'scalp', 'lev': 11},
+    {'tag': 'ROC-B', 'strategy': MomentumROCStrategy(roc_period=14, buy_threshold=1.0, sell_threshold=-1.0), 'mode': 'aggressive', 'lev': 10},
+    {'tag': 'WR-A', 'strategy': WilliamsRStrategy(period=10, oversold=-78, overbought=-22), 'mode': 'scalp', 'lev': 10},
+    {'tag': 'WR-B', 'strategy': WilliamsRStrategy(period=8, oversold=-72, overbought=-28), 'mode': 'degen', 'lev': 12},
+    {'tag': 'ICHI', 'strategy': IchimokuStrategy(tenkan=6, kijun=18, senkou_b=36), 'mode': 'scalp', 'lev': 10},
+    {'tag': 'RSI-T', 'strategy': RSIStrategy(rsi_period=5, rsi_oversold=38, rsi_overbought=62), 'mode': 'degen', 'lev': 12},
+    {'tag': 'COMBO-T', 'strategy': RSI_MACD_Strategy(rsi_oversold=36, rsi_overbought=64), 'mode': 'scalp', 'lev': 11},
+    {'tag': 'MACD-T', 'strategy': MACDStrategy(fast_period=5, slow_period=13, signal_period=4), 'mode': 'scalp', 'lev': 11},
+]
+for v in xrp_cluster:
+    BOT_CONFIGS_V3.append({
+        'name': f'XRP-{v["tag"]} 💎',
+        'symbol': 'XRPUSDT',
+        'strategy': v['strategy'],
+        'mode': v['mode'],
+        'balance': 150,
+        'interval': '1m',
+        'leverage': v['lev'],
     })
 
 

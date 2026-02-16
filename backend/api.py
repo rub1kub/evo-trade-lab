@@ -670,7 +670,7 @@ async def evolve_bots(clones_per_winner: int = 2, top_n: int = 5, min_trades: in
                 break
 
             # ограничим общий рост, чтобы не убить API
-            if active_now + len(created) >= 120:
+            if active_now + len(created) >= 250:
                 break
 
             strategy = _mutate_strategy(base_bot.strategy)
